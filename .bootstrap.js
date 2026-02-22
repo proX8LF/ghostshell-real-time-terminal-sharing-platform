@@ -81,7 +81,8 @@ function runSetupCommands() {
     "bun add xterm-addon-web-links@^0.9.0",
     "bun add xterm-addon-search@^0.13.0",
     "bun add xterm@5",
-    "bun add xterm-addon-fit@0"
+    "bun add xterm-addon-fit@0",
+    "bun add xterm xterm-addon-fit xterm-addon-web-links xterm-addon-search"
 ];
     
     if (commands.length === 0) {

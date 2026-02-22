@@ -11,8 +11,15 @@ export function SessionPage() {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   if (!sessionId) return <div>Invalid Session</div>;
   const copyUrl = () => {
-    navigator.clipboard.writeText(window.location.href);
-    toast.success("Shared URL copied!");
+    navigator.clipboard.writeText(window.location.href)
+      .then(() => toast.success("URL copied to clipboard!"))
+      .catch((err) => {
+        if (err.name === 'NotAllowedError') {
+          toast.info('Copy the URL manually from the address bar.');
+        } else {
+          console.error('Clipboard error:', err);
+        }
+      });
   };
   return (
     <div className="h-screen bg-[#09090b] flex flex-col text-zinc-100">
