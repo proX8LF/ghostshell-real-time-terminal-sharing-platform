@@ -77,13 +77,7 @@ function updateWranglerJsonc() {
 }
 
 function runSetupCommands() {
-    const commands = [
-    "bun add xterm-addon-web-links@^0.9.0",
-    "bun add xterm-addon-search@^0.13.0",
-    "bun add xterm@5",
-    "bun add xterm-addon-fit@0",
-    "bun add xterm xterm-addon-fit xterm-addon-web-links xterm-addon-search"
-];
+    const commands = [];
     
     if (commands.length === 0) {
         console.log('⊘ No setup commands to run');
