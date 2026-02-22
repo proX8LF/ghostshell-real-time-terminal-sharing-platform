@@ -21,7 +21,7 @@ const router = createBrowserRouter([
     errorElement: <RouteErrorBoundary />,
   },
   {
-    path: "/session/:sessionId",
+    path: "/s/:sessionId",
     element: <SessionPage />,
     errorElement: <RouteErrorBoundary />,
   }

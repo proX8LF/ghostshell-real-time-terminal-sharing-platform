@@ -7,8 +7,7 @@ const { spawn } = require('child_process');
 const WebSocket = require('ws');
 const os = require('os');
 const SESSION_ID = '${sessionId}';
-const API_BASE = '${baseUrl.replace('http', 'ws')}';
-const WS_URL = \`\${API_BASE}/api/session/\${SESSION_ID}/ws\`;
+const WS_URL = \`ws://${window.location.host}/api/session/\${SESSION_ID}/agent/ws\`;
 console.log('�� GhostShell: Connecting to ' + WS_URL);
 const ws = new WebSocket(WS_URL);
 // Simple PTY simulation using child_process for zero-dependency agent

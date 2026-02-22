@@ -22,7 +22,7 @@ export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProp
 
   const connectWebSocket = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/session/${sessionId}/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/api/session/${sessionId}/viewer/ws`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 

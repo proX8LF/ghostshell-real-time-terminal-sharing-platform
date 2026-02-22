@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Terminal, Shield, Zap, Copy, Check, Globe, Cpu, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Toaster, toast } from 'sonner';
 export function HomePage() {
   const [sessions, setSessions] = useState<any[]>([]);
@@ -40,7 +41,7 @@ export function HomePage() {
           </h1>
           <p className="max-w-2xl text-lg text-zinc-400 mb-12 leading-relaxed">
             Instant terminal broadcasting for distributed teams.
-            Secure, ultra-low latency, and zero-configuration. 
+            Secure, ultra-low latency, and zero-configuration.
             Powered by Cloudflare Agents.
           </p>
           <Card className="w-full max-w-2xl bg-zinc-900/40 border-zinc-800/50 backdrop-blur-sm p-1 md:p-8 mb-20 shadow-2xl relative overflow-hidden group">
@@ -108,7 +109,7 @@ export function HomePage() {
           <div className="flex items-center gap-3 px-4 py-2 bg-amber-500/5 border border-amber-500/10 rounded-lg max-w-2xl">
             <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
             <p className="text-[11px] text-amber-500/80 leading-relaxed text-left">
-              <span className="font-bold uppercase">AI Disclaimer:</span> While this platform utilizes AI for session coordination, there is a global limit on requests. Service stability depends on regional availability.
+              <span className="font-bold uppercase">AI Disclaimer:</span> While this project has AI capabilities, there is a limit on the number of requests that can be made to the AI servers across all user apps in a given time period.
             </p>
           </div>
           <div className="text-[11px] text-zinc-600 font-mono text-center space-y-2">
