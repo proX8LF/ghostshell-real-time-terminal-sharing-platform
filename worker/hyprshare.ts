@@ -6,9 +6,8 @@ except ImportError:
     print("Error: 'websocket-client' package not found. Install with: pip install websocket-client")
     sys.exit(1)
 class HyprAgent:
-    def __init__(self, server_url, sid, secret=None):
+    def __init__(self, server_url, secret=None):
         self.server_url = server_url.replace('http', 'ws')
-        self.sid = sid
         self.ws = None
         self.secret = secret
         self.shell = os.environ.get('SHELL', '/bin/bash')
@@ -18,6 +17,9 @@ class HyprAgent:
             msg = json.loads(message)
             if msg['type'] == 'input':
                 os.write(self.master_fd, msg['payload'].encode())
+            elif msg['type'] == 'resize':
+                # Resize logic would go here if using pty module
+                pass
         except Exception as e:
             print(f"Msg Error: {e}")
     def on_error(self, ws, error):
@@ -26,7 +28,7 @@ class HyprAgent:
         print("### Connection Closed ###")
         os.kill(os.getpid(), signal.SIGTERM)
     def on_open(self, ws):
-        print(f"Connected to HyprShare Relay for Session: {self.sid}")
+        print("Connected to HyprShare Relay")
         reg = {"type": "register", "payload": {"role": "host", "secret": self.secret}}
         ws.send(json.dumps(reg))
     def run_shell(self):
@@ -44,8 +46,7 @@ class HyprAgent:
         threading.Thread(target=read_pty, daemon=True).start()
     def start(self):
         self.run_shell()
-        ws_endpoint = f"{self.server_url}/api/session/{self.sid}/agent/ws"
-        self.ws = websocket.WebSocketApp(ws_endpoint,
+        self.ws = websocket.WebSocketApp(f"{self.server_url}/agent/ws",
                                   on_open=self.on_open,
                                   on_message=self.on_message,
                                   on_error=self.on_error,
@@ -54,19 +55,17 @@ class HyprAgent:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--server", required=True)
-    parser.add_argument("--sid", required=True)
     args = parser.parse_args()
-    agent = HyprAgent(args.server, args.sid)
+    agent = HyprAgent(args.server)
     agent.start()
 `;
 export const render_installer = (baseUrl: string) => `#!/bin/bash
 set -e
-SID=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 12)
-echo "🚀 Bootstrapping HyprShare Agent... Session ID: $SID"
+echo "���� Bootstrapping HyprShare Agent..."
 pip install websocket-client --quiet || pip3 install websocket-client --quiet
 curl -sSL ${baseUrl}/agent.py > agent.py
 echo "✅ Agent downloaded. Starting session..."
-python3 agent.py --server ${baseUrl} --sid $SID
+python3 agent.py --server ${baseUrl}
 `;
 export const DASHBOARD_HTML = `
 <!DOCTYPE html>
@@ -94,33 +93,33 @@ export const DASHBOARD_HTML = `
             <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
             Start a Session
         </h2>
-        <div class="bg-black p-4 rounded-lg border border-zinc-800 flex justify-between items-center overflow-hidden">
-            <code id="install-cmd" class="text-green-400 text-xs truncate">curl -sSL ${new URL('/', 'https://' + 'placeholder').origin}/get | sh</code>
-            <button onclick="copyCmd()" class="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded ml-4">COPY</button>
+        <div class="bg-black p-4 rounded-lg border border-zinc-800 flex justify-between items-center">
+            <code id="install-cmd" class="text-green-400">curl -sSL ${new URL('/', 'https://' + 'placeholder').origin}/get | sh</code>
+            <button onclick="copyCmd()" class="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded">COPY</button>
         </div>
     </section>
     <section>
         <h2 class="text-zinc-500 uppercase text-xs tracking-widest font-bold mb-6">Live Broadcasts</h2>
-        <div id="sessions-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        <div id="sessions-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Loaded via JS -->
+        </div>
     </section>
     <script>
         const baseUrl = window.location.origin;
         document.getElementById('install-cmd').innerText = \`curl -sSL \${baseUrl}/get | sh\`;
         async function fetchSessions() {
-            try {
-                const res = await fetch('/api/sessions');
-                const { sessions } = await res.json();
-                const grid = document.getElementById('sessions-grid');
-                grid.innerHTML = (sessions || []).map(s => \`
-                    <a href="/s/\${s.id}" class="block bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl hover:border-green-500/50 transition-all">
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="font-bold text-sm">\${s.name}</span>
-                            <span class="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full">\${s.viewers} VIEWERS</span>
-                        </div>
-                        <span class="text-xs text-zinc-500">ID: \${s.id.slice(0,8)}...</span>
-                    </a>
-                \`).join('') || '<p class="text-zinc-600">No active sessions found. Run the command above to start one.</p>';
-            } catch (e) { console.error(e); }
+            const res = await fetch('/api/sessions');
+            const { sessions } = await res.json();
+            const grid = document.getElementById('sessions-grid');
+            grid.innerHTML = sessions.map(s => \`
+                <a href="/s/\${s.id}" class="block bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl hover:border-green-500/50 transition-all">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="font-bold text-sm">\${s.name}</span>
+                        <span class="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full">\${s.viewers} VIEWERS</span>
+                    </div>
+                    <span class="text-xs text-zinc-500">ID: \${s.id.slice(0,8)}...</span>
+                </a>
+            \`).join('') || '<p class="text-zinc-600">No active sessions.</p>';
         }
         function copyCmd() {
             navigator.clipboard.writeText(document.getElementById('install-cmd').innerText);
@@ -171,7 +170,7 @@ export const VIEWER_HTML = `
         term.open(document.getElementById('terminal'));
         fit.fit();
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(\`\${protocol}//\${window.location.host}/api/session/\${sid}/viewer/ws\`);
+        const ws = new WebSocket(\`\${protocol}//\${window.location.host}/viewer/ws/\${sid}\`);
         ws.onopen = () => {
             document.getElementById('status').innerText = 'LIVE';
             document.getElementById('status').classList.add('text-green-500');
@@ -179,8 +178,11 @@ export const VIEWER_HTML = `
         ws.onmessage = (e) => {
             const msg = JSON.parse(e.data);
             if (msg.type === 'data') term.write(msg.payload);
+            if (msg.type === 'session') {
+                 // handle resize if meta provided
+            }
         };
-        term.onData(data => ws.send(JSON.stringify({type: 'input', payload: data})));
+        term.onData(data => ws.send(json.stringify({type: 'input', payload: data})));
         window.onresize = () => fit.fit();
     </script>
 </body>

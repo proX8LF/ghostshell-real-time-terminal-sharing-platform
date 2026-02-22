@@ -1,122 +1,99 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Terminal, Ghost, Shield, Zap, Copy, Check } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Terminal, Shield, Zap, Copy, Check, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Toaster, toast } from 'sonner';
-import { NODE_AGENT_SCRIPT } from '@/lib/node-agent-script';
 export function HomePage() {
-  const [isCreating, setIsCreating] = useState(false);
-  const [session, setSession] = useState<{ id: string } | null>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
-  const navigate = useNavigate();
-  const startSession = async () => {
-    setIsCreating(true);
+  const installCmd = `curl -sSL ${window.location.origin}/get | sh`;
+  const fetchSessions = async () => {
     try {
-      const res = await fetch('/api/sessions', { method: 'POST' });
-      const { data } = await res.json();
-      setSession({ id: data.sessionId });
-      toast.success("Session created! Connect your terminal.");
+      const res = await fetch('/api/sessions');
+      const data = await res.json();
+      setSessions(data.sessions || []);
     } catch (e) {
-      toast.error("Failed to create session");
-    } finally {
-      setIsCreating(false);
+      console.error("Failed to load sessions");
     }
   };
-  const copyScript = () => {
-    if (!session) return;
-    const script = NODE_AGENT_SCRIPT(session.id, window.location.origin);
-    navigator.clipboard.writeText(script);
+  useEffect(() => {
+    fetchSessions();
+    const interval = setInterval(fetchSessions, 5000);
+    return () => clearInterval(interval);
+  }, []);
+  const copyCmd = () => {
+    navigator.clipboard.writeText(installCmd);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast.success("Script copied to clipboard!");
+    toast.success("Installer command copied!");
   };
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 selection:bg-purple-500/30 selection:text-purple-200 overflow-x-hidden">
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 selection:bg-green-500/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="py-12 md:py-24 lg:py-32 flex flex-col items-center text-center">
-          <div className="mb-8 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-purple-500/20 bg-purple-500/5 text-purple-400 text-sm font-mono animate-fade-in">
+        <div className="py-12 md:py-24 flex flex-col items-center text-center">
+          <div className="mb-8 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-green-500/20 bg-green-500/5 text-green-400 text-sm font-mono animate-fade-in">
             <Shield className="w-4 h-4" />
-            <span>Secure Real-time Terminal Sharing</span>
+            <span>Encrypted PTY Streaming</span>
           </div>
           <h1 className="text-6xl md:text-8xl font-display font-black tracking-tighter mb-6 bg-gradient-to-b from-white to-zinc-500 bg-clip-text text-transparent">
-            GHOST<span className="text-green-500">SHELL</span>
+            HYPR<span className="text-green-500">SHARE</span>
           </h1>
-          <p className="max-w-2xl text-lg md:text-xl text-zinc-400 mb-10 leading-relaxed">
-            Broadcast your local shell to the web instantly. High performance, 
-            zero configuration, powered by Cloudflare Workers.
+          <p className="max-w-2xl text-lg text-zinc-400 mb-10">
+            The high-performance terminal sharing platform for modern teams. 
+            Zero config, ultra-low latency, powered by Cloudflare.
           </p>
-          {!session ? (
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button 
-                size="lg" 
-                onClick={startSession}
-                disabled={isCreating}
-                className="bg-green-600 hover:bg-green-500 text-black font-bold px-8 h-14 text-lg rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all hover:scale-105"
-              >
-                {isCreating ? "Initializing..." : "Start Broadcasting"}
+          <Card className="w-full max-w-2xl bg-zinc-900/50 border-zinc-800 p-8 mb-20 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-sm font-mono text-zinc-500 uppercase tracking-widest">Connect your terminal</h3>
+              <Button variant="ghost" size="sm" onClick={copyCmd} className="text-zinc-400 hover:text-white">
+                {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+                Copy Script
               </Button>
             </div>
-          ) : (
-            <div className="w-full max-w-3xl space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-              <Card className="bg-zinc-900/50 border-zinc-800 p-6 text-left">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-sm font-mono text-zinc-500 uppercase tracking-widest">Setup Instructions</h3>
-                  <Button variant="ghost" size="sm" onClick={copyScript} className="text-zinc-400 hover:text-white">
-                    {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
-                    Copy Agent Script
-                  </Button>
-                </div>
-                <div className="bg-black rounded-lg p-4 font-mono text-sm overflow-x-auto whitespace-pre border border-zinc-800/50">
-                  <span className="text-zinc-500"># 1. Save the copied script as ghostshell-agent.js</span><br/>
-                  <span className="text-zinc-500"># 2. Run with Node.js</span><br/>
-                  <span className="text-green-500">node ghostshell-agent.js</span>
-                </div>
-                <div className="mt-6 flex gap-4">
-                  <Button 
-                    onClick={() => navigate(`/session/${session.id}`)}
-                    className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold h-12 rounded-lg"
-                  >
-                    Open Web Console
-                  </Button>
-                </div>
-              </Card>
+            <div className="bg-black rounded-xl p-6 font-mono text-sm overflow-x-auto border border-zinc-800/50 group">
+              <span className="text-zinc-600 mr-2">$</span>
+              <span className="text-green-400">{installCmd}</span>
             </div>
-          )}
-          <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
-            <FeatureCard 
-              icon={<Zap className="text-yellow-500" />} 
-              title="Edge Native" 
-              desc="Built on Cloudflare Durable Objects for sub-50ms latency globally."
-            />
-            <FeatureCard 
-              icon={<Ghost className="text-purple-500" />} 
-              title="Ephemeral" 
-              desc="Sessions are isolated and data is never permanently stored."
-            />
-            <FeatureCard 
-              icon={<Terminal className="text-green-500" />} 
-              title="Interactive" 
-              desc="Full bi-directional communication with standard PTY support."
-            />
+            <p className="mt-4 text-xs text-zinc-500 font-mono">
+              Requires Python 3 & pip. Works on Linux & MacOS.
+            </p>
+          </Card>
+          <div className="w-full max-w-5xl">
+            <div className="flex items-center justify-between mb-8 border-b border-zinc-800 pb-4">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Globe className="w-5 h-5 text-green-500" />
+                Public Broadcasts
+              </h2>
+              <span className="text-xs font-mono text-zinc-500">{sessions.length} ACTIVE</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sessions.length > 0 ? sessions.map(s => (
+                <a 
+                  key={s.id}
+                  href={`/s/${s.id}`}
+                  className="p-5 bg-zinc-900/30 border border-zinc-800 rounded-2xl hover:border-green-500/50 transition-all text-left group"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <span className="font-bold text-white group-hover:text-green-400 transition-colors">{s.name}</span>
+                    <span className="bg-green-500/10 text-green-500 text-[10px] px-2 py-0.5 rounded-full font-mono">
+                      {s.viewers} VIEWERS
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500">
+                    <span>ID: {s.id.slice(0, 8)}...</span>
+                    <span>{new Date(s.createdAt).toLocaleTimeString()}</span>
+                  </div>
+                </a>
+              )) : (
+                <div className="col-span-full py-12 border-2 border-dashed border-zinc-800 rounded-3xl text-zinc-600 font-mono italic">
+                  Waiting for broadcasts to start...
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
       <Toaster theme="dark" position="bottom-center" />
-      <footer className="py-8 text-center text-zinc-600 text-xs font-mono">
-        GHOSTSHELL v1.0 �� POWERED BY CLOUDFLARE
-      </footer>
-    </div>
-  );
-}
-function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
-  return (
-    <div className="p-6 rounded-2xl bg-zinc-900/30 border border-zinc-800/50 hover:border-zinc-700/50 transition-colors group">
-      <div className="mb-4 w-10 h-10 rounded-lg bg-zinc-900 flex items-center justify-center group-hover:scale-110 transition-transform">
-        {icon}
-      </div>
-      <h4 className="text-white font-bold mb-2">{title}</h4>
-      <p className="text-zinc-500 text-sm leading-relaxed">{desc}</p>
     </div>
   );
 }
