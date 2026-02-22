@@ -23,25 +23,26 @@ export class ChatAgent extends Agent<Env, ChatState> {
   }
   async onRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const sid = this.name;
-    if (url.pathname === '/agent/ws') {
+    if (url.pathname.endsWith('/agent/ws')) {
       const [client, server] = Object.values(new WebSocketPair());
       await this.handleAgentWS(server as unknown as WebSocket);
       return new Response(null, { status: 101, webSocket: client as unknown as WebSocket });
     }
-    if (url.pathname.startsWith('/viewer/ws')) {
+    if (url.pathname.includes('/viewer/ws')) {
       const [client, server] = Object.values(new WebSocketPair());
       await this.handleViewerWS(server as unknown as WebSocket);
       return new Response(null, { status: 101, webSocket: client as unknown as WebSocket });
     }
     if (url.pathname === '/meta') {
-        return Response.json(this.sessionData);
+      return Response.json({
+        ...this.sessionData,
+        viewers: this.viewers.size
+      });
     }
     return new Response('Not Found', { status: 404 });
   }
   private async handleAgentWS(ws: WebSocket) {
-    // @ts-expect-error - Cloudflare WS
-    ws.accept();
+    (ws as any).accept();
     this.hostSocket = ws;
     const sid = this.name;
     this.sessionData = {
@@ -52,37 +53,40 @@ export class ChatAgent extends Agent<Env, ChatState> {
       cols: 80,
       rows: 24,
       alive: true,
-      buf: ""
+      buf: this.sessionData?.buf || ""
     };
     await registerSession(this.env, sid, this.sessionData.name);
     await this.ctx.storage.put('hypr_session', this.sessionData);
     ws.addEventListener('message', async (e) => {
-      const msg = JSON.parse(e.data as string);
-      if (msg.type === 'data') {
-        this.sessionData!.buf += msg.payload;
-        if (this.sessionData!.buf.length > this.MAX_BUFFER) {
-          this.sessionData!.buf = this.sessionData!.buf.slice(-this.MAX_BUFFER);
+      try {
+        const msg = JSON.parse(e.data as string);
+        if (msg.type === 'data') {
+          this.sessionData!.buf += msg.payload;
+          if (this.sessionData!.buf.length > this.MAX_BUFFER) {
+            this.sessionData!.buf = this.sessionData!.buf.slice(-this.MAX_BUFFER);
+          }
+          this.relayToViewers({ type: 'data', payload: msg.payload });
+          updateSessionActivity(this.env, sid);
+        } else if (msg.type === 'resize') {
+          this.sessionData!.cols = msg.payload.cols;
+          this.sessionData!.rows = msg.payload.rows;
+          this.relayToViewers({ type: 'resize', payload: msg.payload });
         }
-        this.broadcast({ type: 'data', payload: msg.payload });
-        updateSessionActivity(this.env, sid);
-      } else if (msg.type === 'resize') {
-        this.sessionData!.cols = msg.payload.cols;
-        this.sessionData!.rows = msg.payload.rows;
-        this.broadcast({ type: 'resize', payload: msg.payload });
+      } catch (err) {
+        console.error("Agent WS Error:", err);
       }
     });
     ws.addEventListener('close', () => {
       this.hostSocket = null;
       if (this.sessionData) {
         this.sessionData.alive = false;
-        this.broadcast({ type: 'status', payload: { alive: false } });
+        this.relayToViewers({ type: 'status', payload: { alive: false, viewers: this.viewers.size } });
       }
-      this.ctx.storage.setAlarm(Date.now() + 120000); // 120s prune
+      this.ctx.storage.setAlarm(Date.now() + 120000); // 2 min cleanup
     });
   }
   private async handleViewerWS(ws: WebSocket) {
-    // @ts-expect-error - Cloudflare WS
-    ws.accept();
+    (ws as any).accept();
     this.viewers.add(ws);
     if (this.sessionData) {
       ws.send(JSON.stringify({
@@ -93,36 +97,35 @@ export class ChatAgent extends Agent<Env, ChatState> {
           buf: this.sessionData.buf
         }
       }));
-      // Send backlog
-      ws.send(JSON.stringify({ type: 'data', payload: this.sessionData.buf }));
     }
     ws.addEventListener('message', (e) => {
-      const msg = JSON.parse(e.data as string);
-      if (msg.type === 'input' && this.hostSocket) {
-        this.hostSocket.send(JSON.stringify({ type: 'input', payload: msg.payload }));
+      try {
+        const msg = JSON.parse(e.data as string);
+        if (msg.type === 'input' && this.hostSocket) {
+          this.hostSocket.send(JSON.stringify({ type: 'input', payload: msg.payload }));
+        }
+      } catch (err) {
+        console.error("Viewer WS Error:", err);
       }
     });
-    ws.addEventListener('close', () => this.viewers.delete(ws));
-  }
-  private broadcast(msg: any) {
-    const data = JSON.stringify(msg);
-    this.viewers.forEach(v => {
-      if (v.readyState === 1) v.send(data);
+    ws.addEventListener('close', () => {
+      this.viewers.delete(ws);
+      if (this.sessionData) {
+        this.relayToViewers({ type: 'status', payload: { alive: this.sessionData.alive, viewers: this.viewers.size } });
+      }
     });
+  }
+  private relayToViewers(msg: any) {
+    const data = JSON.stringify(msg);
+    for (const viewer of this.viewers) {
+      if (viewer.readyState === 1) {
+        viewer.send(data);
+      }
+    }
   }
   async onAlarm(): Promise<void> {
     if (!this.hostSocket) {
-      await this.ctx.storage.deleteAll();
-      // Logic to unregister from app controller would go here
+      await this.ctx.storage.delete('hypr_session');
     }
-  }
-  async listSessions() {
-      if (!this.sessionData) return null;
-      return {
-          id: this.sessionData.id,
-          name: this.sessionData.name,
-          viewers: this.viewers.size,
-          alive: this.sessionData.alive
-      };
   }
 }

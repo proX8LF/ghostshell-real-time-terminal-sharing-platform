@@ -12,3 +12,7 @@ export interface ResizePayload {
   cols: number;
   rows: number;
 }
+export interface StatusPayload {
+  alive: boolean;
+  viewers: number;
+}
