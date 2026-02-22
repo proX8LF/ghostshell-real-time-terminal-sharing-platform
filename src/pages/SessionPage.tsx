@@ -1,71 +1,62 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Users, Wifi, Share2, ShieldAlert, Zap } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { TerminalViewer } from '@/components/terminal/TerminalViewer';
 import { StatusPayload } from '@/lib/protocol';
+import { Terminal, Users, Wifi, WifiOff, ArrowLeft, Share2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { toast, Toaster } from 'sonner';
 export function SessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
-  const [status, setStatus] = useState<StatusPayload>({ alive: false, viewers: 0 });
+  const [status, setStatus] = useState<StatusPayload | null>(null);
+  if (!sessionId) return <div>Invalid Session</div>;
   const copyUrl = () => {
     navigator.clipboard.writeText(window.location.href);
-    toast.success("Connection URL copied to clipboard!");
+    toast.success("Shared URL copied!");
   };
   return (
-    <div className="h-screen bg-[#09090b] flex flex-col text-zinc-100 overflow-hidden">
-      <header className="h-16 border-b border-zinc-800 px-6 flex items-center justify-between bg-zinc-950/80 backdrop-blur-xl z-20">
-        <div className="flex items-center gap-6">
-          <Link to="/" className="p-2 hover:bg-zinc-800 rounded-full transition-colors group">
-            <ArrowLeft className="w-5 h-5 text-zinc-500 group-hover:text-white" />
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col">
-              <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-tighter">Instance ID</span>
-              <span className="font-mono text-sm font-bold text-zinc-200">{sessionId?.slice(0, 12)}</span>
-            </div>
-            <Badge className={status.alive ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}>
-              <Wifi className="w-3 h-3 mr-1" />
-              {status.alive ? 'LIVE' : 'OFFLINE'}
-            </Badge>
-          </div>
-        </div>
+    <div className="h-screen bg-[#09090b] flex flex-col text-zinc-100">
+      {/* Slim Header */}
+      <header className="h-14 border-b border-zinc-800 px-4 flex items-center justify-between bg-zinc-950/50 backdrop-blur-md">
         <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-zinc-900 rounded-full border border-zinc-800">
-            <Users className="w-3 h-3 text-zinc-500" />
-            <span className="text-xs font-mono text-zinc-400">{status.viewers} Viewers</span>
+          <Link to="/" className="text-zinc-400 hover:text-white transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="flex items-center gap-2">
+            <Terminal className="w-5 h-5 text-green-500" />
+            <span className="font-mono text-sm font-bold truncate max-w-[120px] md:max-w-none">
+              SESSION: {sessionId.slice(0, 8)}
+            </span>
           </div>
-          <Button size="sm" variant="outline" onClick={copyUrl} className="border-zinc-800 hover:bg-zinc-800 bg-transparent">
+          <Badge variant="outline" className={`ml-2 font-mono ${status?.hostConnected ? 'border-green-500/50 text-green-500 bg-green-500/5' : 'border-red-500/50 text-red-500 bg-red-500/5'}`}>
+            {status?.hostConnected ? <Wifi className="w-3 h-3 mr-1" /> : <WifiOff className="w-3 h-3 mr-1" />}
+            {status?.hostConnected ? 'LIVE' : 'WAITING FOR HOST'}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2 text-zinc-400 text-sm px-3 py-1 bg-zinc-900 rounded-full border border-zinc-800">
+            <Users className="w-3 h-3" />
+            <span className="font-mono">{status?.viewers || 0} Viewers</span>
+          </div>
+          <Button size="sm" variant="outline" onClick={copyUrl} className="border-zinc-700 hover:bg-zinc-800">
             <Share2 className="w-4 h-4 mr-2" />
-            Invite
+            Share
           </Button>
         </div>
       </header>
-      <main className="flex-1 flex flex-col p-4 bg-black relative">
-        <div className="flex-1 max-w-6xl w-full mx-auto relative group">
-          <TerminalViewer 
-            sessionId={sessionId || ''} 
-            onStatusChange={setStatus} 
-          />
+      {/* Main Terminal Content */}
+      <main className="flex-1 p-2 md:p-4 bg-zinc-950 overflow-hidden">
+        <div className="w-full h-full max-w-6xl mx-auto">
+          <TerminalViewer sessionId={sessionId} onStatusChange={setStatus} />
         </div>
       </main>
-      <footer className="bg-zinc-950 border-t border-zinc-800 py-3 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-widest text-zinc-500">
-            <Zap className="w-3 h-3 text-green-500" />
-            GhostShell Protocol v2.1
-          </div>
-          <div className="flex items-center gap-2 text-[10px] text-zinc-600 font-mono">
-            <ShieldAlert className="w-3 h-3 text-amber-500" />
-            <span className="uppercase">Notice:</span> AI processing limits apply across all active sessions. 
-          </div>
-          <div className="text-[10px] text-zinc-500 font-mono">
-            HyprShare Clone &copy; 2024
-          </div>
-        </div>
+      {/* Warning Footer */}
+      <footer className="h-8 flex items-center justify-center bg-yellow-500/10 border-t border-yellow-500/20 px-4">
+        <p className="text-[10px] uppercase tracking-widest text-yellow-500/80 font-mono">
+          ⚠️ Security Warning: Use only for trusted collaborations. Shared terminals allow remote execution.
+        </p>
       </footer>
-      <Toaster theme="dark" position="top-right" />
+      <Toaster theme="dark" />
     </div>
   );
 }

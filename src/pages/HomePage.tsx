@@ -1,138 +1,122 @@
-// Home page of the app.
-// Currently a demo placeholder "please wait" screen.
-// Replace this file with your actual app UI. Do not delete it to use some other file as homepage. Simply replace the entire contents of this file.
-
-import { useEffect, useMemo, useState } from 'react'
-import { Sparkles } from 'lucide-react'
-
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { HAS_TEMPLATE_DEMO, TemplateDemo } from '@/components/TemplateDemo'
-import { Button } from '@/components/ui/button'
-import { Toaster, toast } from '@/components/ui/sonner'
-
-function formatDuration(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
-
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Terminal, Ghost, Shield, Zap, Copy, Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Toaster, toast } from 'sonner';
+import { NODE_AGENT_SCRIPT } from '@/lib/node-agent-script';
 export function HomePage() {
-  const [coins, setCoins] = useState(0)
-  const [isRunning, setIsRunning] = useState(false)
-  const [startedAt, setStartedAt] = useState<number | null>(null)
-  const [elapsedMs, setElapsedMs] = useState(0)
-
-  useEffect(() => {
-    if (!isRunning || startedAt === null) return
-
-    const t = setInterval(() => {
-      setElapsedMs(Date.now() - startedAt)
-    }, 250)
-
-    return () => clearInterval(t)
-  }, [isRunning, startedAt])
-
-  const formatted = useMemo(() => formatDuration(elapsedMs), [elapsedMs])
-
-  const onPleaseWait = () => {
-    setCoins((c) => c + 1)
-
-    if (!isRunning) {
-      // Resume from the current elapsed time
-      setStartedAt(Date.now() - elapsedMs)
-      setIsRunning(true)
-      toast.success('Building your app…', {
-        description: "Hang tight — we're setting everything up.",
-      })
-      return
+  const [isCreating, setIsCreating] = useState(false);
+  const [session, setSession] = useState<{ id: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const navigate = useNavigate();
+  const startSession = async () => {
+    setIsCreating(true);
+    try {
+      const res = await fetch('/api/sessions', { method: 'POST' });
+      const { data } = await res.json();
+      setSession({ id: data.sessionId });
+      toast.success("Session created! Connect your terminal.");
+    } catch (e) {
+      toast.error("Failed to create session");
+    } finally {
+      setIsCreating(false);
     }
-
-    setIsRunning(false)
-    toast.info('Still working…', {
-      description: 'You can come back in a moment.',
-    })
-  }
-
-  const onReset = () => {
-    setCoins(0)
-    setIsRunning(false)
-    setStartedAt(null)
-    setElapsedMs(0)
-    toast('Reset complete')
-  }
-
-  const onAddCoin = () => {
-    setCoins((c) => c + 1)
-    toast('Coin added')
-  }
-
+  };
+  const copyScript = () => {
+    if (!session) return;
+    const script = NODE_AGENT_SCRIPT(session.id, window.location.origin);
+    navigator.clipboard.writeText(script);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast.success("Script copied to clipboard!");
+  };
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 overflow-hidden relative">
-      <ThemeToggle />
-      <div className="absolute inset-0 bg-gradient-rainbow opacity-10 dark:opacity-20 pointer-events-none" />
-
-      <div className="text-center space-y-8 relative z-10 animate-fade-in w-full">
-        <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-primary floating">
-            <Sparkles className="w-8 h-8 text-white rotating" />
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 selection:bg-purple-500/30 selection:text-purple-200 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="py-12 md:py-24 lg:py-32 flex flex-col items-center text-center">
+          <div className="mb-8 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-purple-500/20 bg-purple-500/5 text-purple-400 text-sm font-mono animate-fade-in">
+            <Shield className="w-4 h-4" />
+            <span>Secure Real-time Terminal Sharing</span>
           </div>
-        </div>
-
-        <div className="space-y-3">
-          <h1 className="text-5xl md:text-7xl font-display font-bold text-balance leading-tight">
-            Creating your <span className="text-gradient">app</span>
+          <h1 className="text-6xl md:text-8xl font-display font-black tracking-tighter mb-6 bg-gradient-to-b from-white to-zinc-500 bg-clip-text text-transparent">
+            GHOST<span className="text-green-500">SHELL</span>
           </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto text-pretty">
-            Your application would be ready soon.
+          <p className="max-w-2xl text-lg md:text-xl text-zinc-400 mb-10 leading-relaxed">
+            Broadcast your local shell to the web instantly. High performance, 
+            zero configuration, powered by Cloudflare Workers.
           </p>
-        </div>
-
-        {HAS_TEMPLATE_DEMO ? (
-          <div className="max-w-5xl mx-auto text-left">
-            <TemplateDemo />
-          </div>
-        ) : (
-          <>
-            <div className="flex justify-center gap-4">
-              <Button
-                size="lg"
-                onClick={onPleaseWait}
-                className="btn-gradient px-8 py-4 text-lg font-semibold hover:-translate-y-0.5 transition-all duration-200"
-                aria-live="polite"
+          {!session ? (
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button 
+                size="lg" 
+                onClick={startSession}
+                disabled={isCreating}
+                className="bg-green-600 hover:bg-green-500 text-black font-bold px-8 h-14 text-lg rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all hover:scale-105"
               >
-                Please Wait
+                {isCreating ? "Initializing..." : "Start Broadcasting"}
               </Button>
             </div>
-
-            <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-              <div>
-                Time elapsed:{' '}
-                <span className="font-medium tabular-nums text-foreground">{formatted}</span>
-              </div>
-              <div>
-                Coins:{' '}
-                <span className="font-medium tabular-nums text-foreground">{coins}</span>
-              </div>
+          ) : (
+            <div className="w-full max-w-3xl space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+              <Card className="bg-zinc-900/50 border-zinc-800 p-6 text-left">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-mono text-zinc-500 uppercase tracking-widest">Setup Instructions</h3>
+                  <Button variant="ghost" size="sm" onClick={copyScript} className="text-zinc-400 hover:text-white">
+                    {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+                    Copy Agent Script
+                  </Button>
+                </div>
+                <div className="bg-black rounded-lg p-4 font-mono text-sm overflow-x-auto whitespace-pre border border-zinc-800/50">
+                  <span className="text-zinc-500"># 1. Save the copied script as ghostshell-agent.js</span><br/>
+                  <span className="text-zinc-500"># 2. Run with Node.js</span><br/>
+                  <span className="text-green-500">node ghostshell-agent.js</span>
+                </div>
+                <div className="mt-6 flex gap-4">
+                  <Button 
+                    onClick={() => navigate(`/session/${session.id}`)}
+                    className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold h-12 rounded-lg"
+                  >
+                    Open Web Console
+                  </Button>
+                </div>
+              </Card>
             </div>
-
-            <div className="flex justify-center gap-2">
-              <Button variant="outline" size="sm" onClick={onReset}>
-                Reset
-              </Button>
-              <Button variant="outline" size="sm" onClick={onAddCoin}>
-                Add Coin
-              </Button>
-            </div>
-          </>
-        )}
+          )}
+          <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
+            <FeatureCard 
+              icon={<Zap className="text-yellow-500" />} 
+              title="Edge Native" 
+              desc="Built on Cloudflare Durable Objects for sub-50ms latency globally."
+            />
+            <FeatureCard 
+              icon={<Ghost className="text-purple-500" />} 
+              title="Ephemeral" 
+              desc="Sessions are isolated and data is never permanently stored."
+            />
+            <FeatureCard 
+              icon={<Terminal className="text-green-500" />} 
+              title="Interactive" 
+              desc="Full bi-directional communication with standard PTY support."
+            />
+          </div>
+        </div>
       </div>
-
-      <footer className="absolute bottom-8 text-center text-muted-foreground/80">
-        <p>Powered by Cloudflare</p>
+      <Toaster theme="dark" position="bottom-center" />
+      <footer className="py-8 text-center text-zinc-600 text-xs font-mono">
+        GHOSTSHELL v1.0 �� POWERED BY CLOUDFLARE
       </footer>
-
-      <Toaster richColors closeButton />
     </div>
-  )
+  );
+}
+function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
+  return (
+    <div className="p-6 rounded-2xl bg-zinc-900/30 border border-zinc-800/50 hover:border-zinc-700/50 transition-colors group">
+      <div className="mb-4 w-10 h-10 rounded-lg bg-zinc-900 flex items-center justify-center group-hover:scale-110 transition-transform">
+        {icon}
+      </div>
+      <h4 className="text-white font-bold mb-2">{title}</h4>
+      <p className="text-zinc-500 text-sm leading-relaxed">{desc}</p>
+    </div>
+  );
 }
