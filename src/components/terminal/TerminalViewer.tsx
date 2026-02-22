@@ -3,11 +3,13 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import { TerminalMessage, StatusPayload } from '@/lib/protocol';
-import { Loader2, WifiOff } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+
 interface TerminalViewerProps {
   sessionId: string;
   onStatusChange?: (status: StatusPayload) => void;
 }
+
 export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -17,47 +19,43 @@ export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProp
   const reconnectAttemptsRef = useRef<number>(0);
   const [isConnected, setIsConnected] = useState(false);
   const [isError, setIsError] = useState(false);
+
   const connectWebSocket = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/session/${sessionId}/viewer/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/api/session/${sessionId}/ws`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+
     ws.onopen = () => {
       reconnectAttemptsRef.current = 0;
       setIsConnected(true);
       setIsError(false);
+      ws.send(JSON.stringify({ type: 'register', payload: { role: 'client' } }));
+      // Send initial resize
       requestAnimationFrame(() => {
-        if (fitAddonRef.current && ws.readyState === WebSocket.OPEN) {
-          try {
-            const dims = fitAddonRef.current.proposeDimensions();
-            if (dims) {
-              ws.send(JSON.stringify({ type: 'resize', payload: dims }));
-            }
-          } catch (e) {
-            console.warn("Initial fit failed", e);
-          }
+        const dims = fitAddonRef.current?.proposeDimensions();
+        if (dims && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize', payload: dims }));
         }
       });
     };
+
     ws.onmessage = (event) => {
-      try {
-        const msg: TerminalMessage = JSON.parse(event.data);
-        if (msg.type === 'data') {
-          xtermRef.current?.write(msg.payload);
-        } else if (msg.type === 'status') {
-          onStatusChange?.(msg.payload as StatusPayload);
-        } else if (msg.type === 'session') {
-          xtermRef.current?.clear();
-          if (msg.payload.buf) xtermRef.current?.write(msg.payload.buf);
-        }
-      } catch (e) {
-        console.error("Message parse error", e);
+      const msg: TerminalMessage = JSON.parse(event.data);
+      if (msg.type === 'data') {
+        xtermRef.current?.write(msg.payload);
+      } else if (msg.type === 'status') {
+        onStatusChange?.(msg.payload as StatusPayload);
+      } else if (msg.type === 'resize') {
+        fitAddonRef.current?.fit();
       }
     };
+
     ws.onerror = () => {
+      setIsConnected(false);
       setIsError(true);
     };
+
     ws.onclose = () => {
       setIsConnected(false);
       if (reconnectAttemptsRef.current < 5) {
@@ -66,11 +64,15 @@ export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProp
           reconnectAttemptsRef.current++;
           connectWebSocket();
         }, delay);
+      } else {
+        setIsError(true);
       }
     };
-  }, [sessionId, onStatusChange]);
+  }, []);
+
   useEffect(() => {
     if (!terminalRef.current) return;
+
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 14,
@@ -78,57 +80,77 @@ export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProp
       theme: {
         background: '#09090b',
         foreground: '#22c55e',
-        selectionBackground: '#22c55e40',
-        cursor: '#22c55e',
+        selectionBackground: '#00ff4120',
+        cursor: '#00ff41',
+        cursorAccent: '#00ff41',
+        brightGreen: '#00ff41',
+        black: '#0a0a0a',
+        brightBlack: '#1a1a1a',
+        brightBlue: '#3b82f6',
       }
     });
+
     const fitAddon = new FitAddon();
     fitAddonRef.current = fitAddon;
     term.loadAddon(fitAddon);
     term.open(terminalRef.current);
     xtermRef.current = term;
-    const handleResize = () => {
-      if (fitAddonRef.current && xtermRef.current) {
-        try {
-          fitAddonRef.current.fit();
-          const dims = fitAddonRef.current.proposeDimensions();
-          if (wsRef.current?.readyState === WebSocket.OPEN && dims) {
-            wsRef.current.send(JSON.stringify({ type: 'resize', payload: dims }));
-          }
-        } catch (e) {
-          // Ignore fit errors if element is hidden
-        }
-      }
-    };
-    resizeObserverRef.current = new ResizeObserver(handleResize);
-    resizeObserverRef.current.observe(terminalRef.current);
+
+    // Initial fit
+    fitAddonRef.current?.fit();
+
+    // Input handling
     term.onData((data) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'input', payload: data }));
       }
     });
+
+    // Resize observer
+    const handleResize = () => {
+      if (fitAddonRef.current && xtermRef.current) {
+        const dims = fitAddonRef.current.proposeDimensions();
+        fitAddonRef.current.fit();
+        if (wsRef.current?.readyState === WebSocket.OPEN && dims) {
+          wsRef.current.send(JSON.stringify({ type: 'resize', payload: dims }));
+        }
+      }
+    };
+
+    resizeObserverRef.current = new ResizeObserver(handleResize);
+    resizeObserverRef.current.observe(terminalRef.current);
+
+    // Connect websocket
     connectWebSocket();
+
     return () => {
       resizeObserverRef.current?.disconnect();
       wsRef.current?.close();
       xtermRef.current?.dispose();
       fitAddonRef.current = null;
     };
-  }, [connectWebSocket]);
+  }, [sessionId, onStatusChange]);
+
+  const handleRetry = useCallback(() => {
+    setIsError(false);
+    reconnectAttemptsRef.current = 0;
+    connectWebSocket();
+  }, []);
+
   return (
-    <div className="relative w-full h-full bg-[#09090b] p-2 rounded-lg border border-zinc-800 shadow-2xl overflow-hidden">
+    <div className="relative w-full h-full bg-[#09090b] p-2 rounded-lg border border-zinc-800 shadow-2xl">
       {(!isConnected || isError) && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4 p-6 bg-zinc-900 border border-zinc-800 rounded-2xl">
+          <div className="flex flex-col items-center gap-2">
             {isError ? (
               <>
-                <WifiOff className="w-8 h-8 text-red-500" />
-                <span className="text-sm font-mono text-red-400">Connection Failed</span>
+                <div className="w-8 h-8 border-2 border-red-500 border-t-green-500 rounded-full animate-spin" />
+                <span className="text-sm font-mono text-red-400">Connection failed</span>
                 <button
-                  onClick={() => { setIsError(false); reconnectAttemptsRef.current = 0; connectWebSocket(); }}
-                  className="px-6 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-500 text-xs font-mono rounded-full border border-green-500/30 transition-all"
+                  onClick={handleRetry}
+                  className="px-4 py-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 text-xs font-mono rounded border border-green-500/50 transition-all"
                 >
-                  Reconnect
+                  Retry
                 </button>
               </>
             ) : (
@@ -144,3 +166,4 @@ export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProp
     </div>
   );
 }
+//
