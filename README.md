@@ -2,7 +2,7 @@
 
 A production-ready full-stack AI chatbot application powered by Cloudflare Workers. Features persistent chat sessions via Durable Objects, tool calling (web search, weather, custom MCP tools), streaming responses, and a modern React frontend with shadcn/ui.
 
-**[cloudflarebutton]**
+**[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/proX8LF/ghostshell-real-time-terminal-sharing-platform)**
 
 ## ✨ Key Features
 
@@ -101,7 +101,7 @@ bun run deploy  # Builds + wrangler deploy
 ```
 Or use the dashboard.
 
-**[cloudflarebutton]**
+**[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/proX8LF/ghostshell-real-time-terminal-sharing-platform)**
 
 **Custom Domain**: Set in Wrangler dashboard after deployment.
 
@@ -131,4 +131,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 Built with ❤️ for Cloudflare Workers. Star this repo and deploy instantly!
 
-**[cloudflarebutton]**
+**[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/proX8LF/ghostshell-real-time-terminal-sharing-platform)**
