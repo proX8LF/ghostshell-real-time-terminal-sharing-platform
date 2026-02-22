@@ -16,9 +16,9 @@ export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProp
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const reconnectAttemptsRef = useRef<number>(0);
   const [isConnected, setIsConnected] = useState(false);
   const [isError, setIsError] = useState(false);
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
   const connectWebSocket = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -27,9 +27,9 @@ export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProp
     wsRef.current = ws;
 
     ws.onopen = () => {
+      reconnectAttemptsRef.current = 0;
       setIsConnected(true);
       setIsError(false);
-      setReconnectAttempts(0);
       ws.send(JSON.stringify({ type: 'register', payload: { role: 'client' } }));
       // Send initial resize
       requestAnimationFrame(() => {
@@ -58,17 +58,17 @@ export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProp
 
     ws.onclose = () => {
       setIsConnected(false);
-      if (reconnectAttempts < 5) {
-        const delay = 1000 * Math.pow(2, reconnectAttempts);
+      if (reconnectAttemptsRef.current < 5) {
+        const delay = 1000 * Math.pow(2, reconnectAttemptsRef.current);
         setTimeout(() => {
-          setReconnectAttempts(prev => prev + 1);
+          reconnectAttemptsRef.current++;
           connectWebSocket();
         }, delay);
       } else {
         setIsError(true);
       }
     };
-  }, [sessionId, onStatusChange, reconnectAttempts]);
+  }, [sessionId, onStatusChange]);
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -97,7 +97,7 @@ export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProp
     xtermRef.current = term;
 
     // Initial fit
-    fitAddon.fit();
+    fitAddonRef.current?.fit();
 
     // Input handling
     term.onData((data) => {
@@ -129,13 +129,13 @@ export function TerminalViewer({ sessionId, onStatusChange }: TerminalViewerProp
       xtermRef.current?.dispose();
       fitAddonRef.current = null;
     };
-  }, [connectWebSocket]);
+  }, [sessionId, onStatusChange]);
 
   const handleRetry = useCallback(() => {
     setIsError(false);
-    setReconnectAttempts(0);
+    reconnectAttemptsRef.current = 0;
     connectWebSocket();
-  }, [connectWebSocket]);
+  }, [connectWebSocket, sessionId, onStatusChange]);
 
   return (
     <div className="relative w-full h-full bg-[#09090b] p-2 rounded-lg border border-zinc-800 shadow-2xl">
